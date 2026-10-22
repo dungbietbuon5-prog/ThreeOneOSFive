@@ -1,0 +1,48 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Create IPA
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Unzip source code
+      run: |
+        unzip -o 3105-main.zip
+        # Di chuyển tất cả file từ thư mục đã giải nén ra ngoài
+        if [ -d "3105-main" ]; then
+          mv 3105-main/* .
+        fi
+
+    - name: Build app
+      run: |
+        xcodebuild -project ThreeOneOSFive.xcodeproj \
+                   -scheme ThreeOneOSFive \
+                   -configuration Release \
+                   -derivedDataPath build \
+                   -sdk iphoneos \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO
+
+    - name: Package to IPA
+      run: |
+        cd build/Build/Products/Release-iphoneos
+        mkdir Payload
+        mv *.app Payload/
+        zip -r ../../../ThreeOneOSFive.ipa Payload
+        cd -
+
+    - name: Upload IPA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ThreeOneOSFive-IPA
+        path: ThreeOneOSFive.ipa
