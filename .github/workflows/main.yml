@@ -16,15 +16,31 @@ jobs:
 
     - name: Unzip source code
       run: |
-        unzip -o 3105-main.zip
-        if [ -d "3105-main" ]; then
-          mv 3105-main/* .
+        if [ -f "3105-main.zip" ]; then
+          unzip -o 3105-main.zip
         fi
 
     - name: Build app
       run: |
-        xcodebuild -project ThreeOneOSFive.xcodeproj \
-                   -scheme ThreeOneOSFive \
+        PROJ_PATH=$(find . -maxdepth 3 -name "*.xcodeproj" | head -n 1)
+        if [ -z "$PROJ_PATH" ]; then
+          echo "Không tìm thấy file .xcodeproj!"
+          exit 1
+        fi
+        echo "Project path: $PROJ_PATH"
+        
+        # Tự động lấy tên scheme đầu tiên tìm thấy trong project
+        SCHEME_NAME=$(xcodebuild -project "$PROJ_PATH" -list | grep -A 10 "Schemes:" | tail -n +2 | xargs | awk '{print $1}')
+        
+        if [ -z "$SCHEME_NAME" ]; then
+          # Nếu không tìm thấy scheme shared, tự động tạo/dùng scheme từ target
+          SCHEME_NAME=$(xcodebuild -project "$PROJ_PATH" -list | grep -A 10 "Targets:" | tail -n +2 | head -n 1 | xargs)
+        fi
+        
+        echo "Build với Scheme: $SCHEME_NAME"
+        
+        xcodebuild -project "$PROJ_PATH" \
+                   -scheme "$SCHEME_NAME" \
                    -configuration Release \
                    -derivedDataPath build \
                    -sdk iphoneos \
@@ -34,11 +50,14 @@ jobs:
 
     - name: Package to IPA
       run: |
-        cd build/Build/Products/Release-iphoneos
-        mkdir Payload
-        mv *.app Payload/
-        zip -r ../../../ThreeOneOSFive.ipa Payload
-        cd -
+        APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 2 -name "*.app" | head -n 1)
+        if [ -z "$APP_PATH" ]; then
+          echo "Không tìm thấy file .app!"
+          exit 1
+        fi
+        mkdir -p Payload
+        cp -R "$APP_PATH" Payload/
+        zip -r ThreeOneOSFive.ipa Payload
 
     - name: Upload IPA artifact
       uses: actions/upload-artifact@v4
